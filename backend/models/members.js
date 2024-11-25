@@ -50,6 +50,12 @@ membersSchema.pre('save', function () {
   member.age = getAge(this.birthYear, this.birthMonth, this.birthDay);
   member.zodiac = getZodiac(this.birthYear, this.birthMonth, this.birthDay);
 });
+// finding and deleting a member
+membersSchema.post('findOneAndDelete', async function (deletedMember) {
+  if (deletedMember) {
+    await Password.deleteMany({ member: deletedMember._id });
+  }
+});
 
 export const Member = mongoose.model('Member', membersSchema);
 export const Password = mongoose.model('Password', passwordSchema);
