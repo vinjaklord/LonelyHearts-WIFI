@@ -24,7 +24,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 app.get('/', (req, res) => {
-  res.send('Welcome to Lonely Hearts!');
+  res.send('Welcome to Lonely Hearts API!');
 });
 
 // All other routes
