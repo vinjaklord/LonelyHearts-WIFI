@@ -8,14 +8,18 @@ import {
   changePassword,
   deleteMember,
   updateMember,
+  addFavorite,
+  removeFavorite,
 } from '../controllers/members.js';
 import { upload, checkToken } from '../common/middlewares.js';
 const router = new Router();
 
 // TODO: build in the chech token
 router.get('/members', checkToken, getAllMembers);
-
-router.get('/members/:id', getOneMember);
+router.get('/members/:id', checkToken, getOneMember);
+router.get('/members/distances/:id', checkToken, getOneMember);
+router.post('/favorites/:favoriteId', checkToken, addFavorite);
+router.delete('/favorites/:favoriteId', checkToken, removeFavorite);
 
 router.post(
   '/members/signup',

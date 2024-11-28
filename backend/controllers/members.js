@@ -8,9 +8,14 @@ import {
   deleteFile,
   checkHash,
   getToken,
+  deleteFilefromCloudinary,
+  getGeoDistance,
 } from '../common/index.js';
 
+const FOLDER_NAME = '1h2024';
+
 import mongoose from 'mongoose';
+import { response } from 'express';
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -33,7 +38,7 @@ const signup = async (req, res, next) => {
       throw new HttpError('Photo is missing', 422);
     }
     // photo transfer to cloudinary
-    const response = await sendFileToCloudinary('1h2024', req.file.path);
+    const response = await sendFileToCloudinary(FOLDER_NAME, req.file.path);
 
     photo = {
       cloudinaryPublicId: response.public_id,
@@ -175,9 +180,12 @@ const changePassword = async (req, res, next) => {
 
 const deleteMember = async (req, res, next) => {
   try {
-    if (req.verifiedMember._id != req.params.id) {
-      throw new HttpError('Cannot delete!', 403);
+    if (!req.verifiedMember.isAdmin) {
+      if (req.verifiedMember._id != req.params.id) {
+        throw new HttpError('Cannot delete!', 403);
+      }
     }
+
     // search for member, when not then abort with error
     const deletedMember = await Member.findOneAndDelete({ _id: req.params.id });
 
@@ -196,7 +204,7 @@ const deleteMember = async (req, res, next) => {
 const getAllMembers = async (req, res, next) => {
   console.log(req.verifiedMember);
   // get all members with an empty object
-  const memberList = await Member.find({});
+  const memberList = await Member.find({}).populate('favorites'); // it adds the whole data from the added favorite to favorite array
 
   try {
     // List of all members in JSON-format send to the client
@@ -211,7 +219,7 @@ const getAllMembers = async (req, res, next) => {
 
 const getOneMember = async (req, res, next) => {
   // get one member
-  const member = await Member.findById(req.params.id);
+  const member = await Member.findById(req.params.id).populate('favorites');
 
   try {
     if (!member) {
@@ -224,15 +232,20 @@ const getOneMember = async (req, res, next) => {
   }
 };
 
-// TODO: "message": "Error: [{\"type\":\"field\",\"value\":\"\",\"msg\":\"Invalid value\",\"path\":\"birthYear\",\"location\":\"body\"}]"
+// TODO: fix updatemember with default code
+
 const updateMember = async (req, res, next) => {
   try {
-    // send out edited data
+    // Sicherheitsprüfung: Member kann sich nur selbst wollen
     const { id } = req.params;
-    if (req.verifiedMember._id != req.params.id) {
-      throw new HttpError('Cannot update!', 403);
+
+    if (!req.verifiedMember.isAdmin) {
+      if (req.verifiedMember._id.toString() !== id) {
+        throw new HttpError('Cant update member', 403);
+      }
     }
 
+    // Feldprüfungen Ergebnis checken
     const result = validationResult(req);
 
     if (result.errors.length > 0) {
@@ -240,12 +253,117 @@ const updateMember = async (req, res, next) => {
     }
 
     const data = matchedData(req);
-    console.log('was is data', data);
 
-    res.json({});
+    // gibt es den Member überhaupt? Wenn nein, Abbruch
+    const foundMember = await Member.findById(id);
+
+    if (!foundMember) {
+      throw new HttpError('Member cannot be found', 404);
+    }
+
+    // Es werden nur die Felder geändert, die über die Schnittstelle kommen
+    Object.assign(foundMember, data);
+
+    // wenn ein Bild kommt:
+    if (req.file) {
+      // Neues Bild in Cloudinary speichern
+      const response = await sendFileToCloudinary(FOLDER_NAME, req.file.path);
+
+      // Cloudinary Bild löschen
+      await deleteFilefromCloudinary(foundMember.photo.cloudinaryPublicId);
+
+      const photo = {
+        cloudinaryPublicId: response.public_id,
+        url: response.secure_url,
+      };
+
+      foundMember.photo = photo;
+    }
+
+    // nur wenn Zip, Street oder City kommt, dann Geodaten neu holen
+    if (data.zip || data.street || data.city) {
+      const address = data.street + ', ' + data.zip + ' ' + data.city;
+      const geo = await getGeolocation(address);
+      foundMember.geo = geo;
+    }
+
+    // Member speichern
+    const updatedMember = await foundMember.save();
+
+    // geänderten Daten rausschicken
+    res.json(updatedMember);
   } catch (error) {
-    return next(new HttpError(error, error.errorCode || 422));
+    return next(new HttpError(error, error.errorCode || 500));
   }
+};
+
+const getDistances = async (req, res, next) => {
+  const { id } = req.params;
+
+  const foundMember = await Member.findById(id);
+
+  if (!foundMember) {
+    throw new HttpError('member cannot be found', 404);
+  }
+
+  const otherMembers = await Member.find({ _id: { $ne: id } });
+
+  const calculatedMembers = otherMembers.map((member) => {
+    return {
+      ...member.toObject(),
+      distance: getGeoDistance(
+        foundMember.geo.lat,
+        foundMember.geo.lon,
+        member.geo.lat,
+        member.geo.lon
+      ),
+    };
+  });
+
+  res.json(calculatedMembers);
+};
+
+const addFavorite = async (req, res, next) => {
+  const { _id: id } = req.verifiedMember;
+
+  const foundMember = await Member.findById(id);
+
+  if (!foundMember) {
+    throw new HttpError('member cannot be found', 404);
+  }
+
+  const { favoriteId } = req.params;
+
+  if (foundMember.favorites.includes(favoriteId)) {
+    return res.json(foundMember);
+  }
+  foundMember.favorites.push(favoriteId);
+
+  const savedMember = await foundMember.save();
+  res.json(savedMember);
+};
+
+const removeFavorite = async (req, res, next) => {
+  const { _id: id } = req.verifiedMember;
+  const foundMember = await Member.findById(id);
+
+  if (!foundMember) {
+    throw new HttpError('Member not found.', 404);
+  }
+
+  const { favoriteId } = req.params;
+
+  const index = foundMember.favorites.findIndex(
+    (favorite) => favorite.toString() === favoriteId
+  );
+  if (index === -1) {
+    return res.json(foundMember);
+  }
+  foundMember.favorites.splice(index, 1);
+
+  const savedMember = await foundMember.save();
+
+  res.json(savedMember);
 };
 
 // other controllers for member
@@ -258,4 +376,7 @@ export {
   changePassword,
   deleteMember,
   updateMember,
+  getDistances,
+  addFavorite,
+  removeFavorite,
 };

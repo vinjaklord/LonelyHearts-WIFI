@@ -17,6 +17,10 @@ const membersSchema = new Schema(
     birthYear: { type: Number, require: true },
     statement: String,
     paused: { type: Boolean, default: false },
+    isAdmin: { type: Boolean, default: false },
+    favorites: [
+      { type: mongoose.Types.ObjectId, required: true, ref: 'Member' },
+    ],
     photo: {
       cloudinaryPublicId: { type: String, required: true },
       url: { type: String, required: true },
