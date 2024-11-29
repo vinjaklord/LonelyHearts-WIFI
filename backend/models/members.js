@@ -42,8 +42,6 @@ const passwordSchema = new Schema(
   { timestamps: true }
 );
 
-// adding a method to the member model
-
 membersSchema.methods.getAge = function () {
   return getAge(this.birthYear, this.birthMonth, this.birthDay);
 };
@@ -61,5 +59,21 @@ membersSchema.post('findOneAndDelete', async function (deletedMember) {
   }
 });
 
+const heartSchema = new Schema(
+  {
+    sender: { type: String, ref: 'Member', required: true },
+    recipient: { type: String, ref: 'Member', required: true },
+    text: { type: String, required: true },
+    confirmed: { type: String, required: true },
+  },
+  { timestamps: true }
+);
+
+const visitSchema = new Schema({
+  visitor: { type: String, ref: 'Member', required: true },
+  targetMember: { type: String, ref: 'Member', required: true },
+});
 export const Member = mongoose.model('Member', membersSchema);
 export const Password = mongoose.model('Password', passwordSchema);
+export const Heart = mongoose.model('Heart', heartSchema);
+export const Visit = mongoose.model('Visit', visitSchema);

@@ -1,5 +1,5 @@
 import HttpError from '../models/http-error.js';
-import { Member, Password } from '../models/members.js';
+import { Member, Password, Heart, Visit } from '../models/members.js';
 import { validationResult, matchedData } from 'express-validator';
 import {
   sendFileToCloudinary,
@@ -189,6 +189,8 @@ const deleteMember = async (req, res, next) => {
     // search for member, when not then abort with error
     const deletedMember = await Member.findOneAndDelete({ _id: req.params.id });
 
+    // await Password.findOneAndDelete({ members: req.params.id });
+
     if (!deletedMember) {
       throw new HttpError('Member not found', 404);
     }
@@ -366,7 +368,149 @@ const removeFavorite = async (req, res, next) => {
   res.json(savedMember);
 };
 
-// other controllers for member
+const sendHeart = async (req, res, next) => {
+  try {
+    const { sender, recipient, text, confirmed } = req.body;
+
+    const validSender = await Member.findById(sender);
+    const validRecipient = await Member.findById(recipient);
+
+    if (!validSender || !validRecipient) {
+      throw new HttpError('sender/recipient not found.', 404);
+    }
+
+    const existingHeart = await Heart.findOne({ sender, recipient });
+
+    if (existingHeart) {
+      throw new HttpError('Heart already sent', 400);
+    }
+
+    const heart = new Heart({ sender, recipient, text, confirmed });
+    await heart.save();
+
+    res.json(heart);
+  } catch (error) {
+    return next(new HttpError(error, error.errorCode, 500));
+  }
+};
+
+const getHeartsForMember = async (req, res, next) => {
+  try {
+    const memberId = req.params.id;
+
+    const memberExists = await Member.findById(memberId);
+    if (!memberExists) {
+      throw new HttpError('Member not found', 404);
+    }
+
+    const hearts = await Heart.find({ sender: memberId });
+
+    if (hearts.length === 0) {
+      throw new HttpError('No hearts found for this member', 404);
+    }
+
+    res.json(hearts);
+  } catch (error) {
+    return next(new HttpError(error.message, 500));
+  }
+};
+
+const deleteHeart = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const heart = await Heart.findOneAndDelete({ _id: id });
+
+    if (!heart) {
+      throw new HttpError('Heart not found', 404);
+    }
+
+    res.json({ message: 'Heart deleted successfully' });
+  } catch (error) {
+    return next(new HttpError(error.message, error.errorCode || 500));
+  }
+};
+
+const confirmHeart = async (req, res, next) => {
+  try {
+    const heartId = req.params.id;
+
+    const heart = await Heart.findById(heartId);
+
+    if (!heart) {
+      throw new HttpError('Heart not found', 404);
+    }
+
+    heart.confirmed = true;
+    await heart.save();
+
+    res.json({ message: 'Heart confirmed successfully', heart });
+  } catch (error) {
+    return next(new HttpError(error.message, 500));
+  }
+};
+/////////////////////////////////////////////////
+const createVisit = async (req, res, next) => {
+  try {
+    const { visitor, targetMember } = req.body;
+
+    const validSender = await Member.findById(visitor);
+    const validRecipient = await Member.findById(targetMember);
+
+    if (!validSender || !validRecipient) {
+      throw new HttpError('Visitor/Target Member not found', 404);
+    }
+
+    // const existingVisit = await Heart.findOne({ visitor, targetMember });
+
+    // if (existingVisit) {
+    //   throw new HttpError('Heart already sent', 400);
+    // }
+
+    const visit = new Visit({ visitor, targetMember });
+    await visit.save();
+
+    res.json({
+      message: `${validSender.nickname} is visiting ${validRecipient.nickname}`,
+      visit,
+    });
+  } catch (error) {
+    return next(new HttpError(error.message, 500));
+  }
+};
+
+const allVisits = async (req, res, next) => {
+  const memberId = req.params.id;
+
+  const memberExists = await Member.findById(memberId);
+  if (!memberExists) {
+    throw new HttpError('Member not found', 404);
+  }
+
+  const visits = await Visit.find({ visitor: memberId });
+
+  if (visits.length === 0) {
+    throw new HttpError('No hearts found for this member', 404);
+  }
+
+  res.json(visits);
+};
+
+const deleteVisit = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const visit = await Visit.findOneAndDelete({ _id: id });
+
+    if (!visit) {
+      throw new HttpError('Heart not found', 404);
+    }
+
+    res.json({ message: 'Visit deleted successfully' });
+  } catch (error) {
+    return next(new HttpError(error.message, error.errorCode || 500));
+  }
+};
 
 export {
   signup,
@@ -379,4 +523,11 @@ export {
   getDistances,
   addFavorite,
   removeFavorite,
+  sendHeart,
+  getHeartsForMember,
+  deleteHeart,
+  confirmHeart,
+  createVisit,
+  allVisits,
+  deleteVisit,
 };

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { body } from 'express-validator';
+import { body, param } from 'express-validator';
 import {
   login,
   signup,
@@ -10,6 +10,13 @@ import {
   updateMember,
   addFavorite,
   removeFavorite,
+  sendHeart,
+  getHeartsForMember,
+  confirmHeart,
+  deleteHeart,
+  createVisit,
+  allVisits,
+  deleteVisit,
 } from '../controllers/members.js';
 import { upload, checkToken } from '../common/middlewares.js';
 const router = new Router();
@@ -79,4 +86,51 @@ router.post(
 
   login
 );
+
+router.post(
+  '/hearts',
+  checkToken,
+  body('sender').isMongoId(),
+  body('recipient').isMongoId(),
+  body('text').isString().isLength({ min: 1, max: 500 }),
+  body('confirmed').optional().isBoolean(),
+  sendHeart
+);
+
+router.get(
+  '/hearts/:id',
+  checkToken,
+  param('id').isMongoId(),
+  getHeartsForMember
+);
+
+router.patch(
+  '/hearts/:id',
+  checkToken,
+  param('id').isMongoId(),
+  body('confirmed').isBoolean(),
+  confirmHeart
+);
+
+router.delete('/hearts/:id', checkToken, param('id').isMongoId(), deleteHeart);
+
+router.post(
+  '/visits',
+  checkToken,
+
+  createVisit
+);
+router.get(
+  '/visits/:id',
+  checkToken,
+
+  allVisits
+);
+router.delete(
+  '/visits/:id',
+  checkToken,
+
+  deleteVisit
+);
+
 export default router;
