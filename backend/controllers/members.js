@@ -189,6 +189,14 @@ const deleteMember = async (req, res, next) => {
     // search for member, when not then abort with error
     const deletedMember = await Member.findOneAndDelete({ _id: req.params.id });
 
+    // await Visit.deleteMany({
+    //   $or: [{ visitor: req.params.id }, { targetMember: req.params.id }],
+    // });
+
+    // await Heart.deleteMany({
+    //   $or: [{ sender: req.params.id }, { recipient: req.params.id }],
+    // });
+
     // await Password.findOneAndDelete({ members: req.params.id });
 
     if (!deletedMember) {

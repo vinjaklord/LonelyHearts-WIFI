@@ -52,10 +52,20 @@ membersSchema.pre('save', function () {
   member.age = getAge(this.birthYear, this.birthMonth, this.birthDay);
   member.zodiac = getZodiac(this.birthYear, this.birthMonth, this.birthDay);
 });
+
 // finding and deleting a member
+
 membersSchema.post('findOneAndDelete', async function (deletedMember) {
   if (deletedMember) {
     await Password.deleteMany({ member: deletedMember._id });
+
+    await Visit.deleteMany({
+      $or: [{ visitor: req.params.id }, { targetMember: req.params.id }],
+    });
+
+    await Heart.deleteMany({
+      $or: [{ sender: req.params.id }, { recipient: req.params.id }],
+    });
   }
 });
 
@@ -69,11 +79,22 @@ const heartSchema = new Schema(
   { timestamps: true }
 );
 
-const visitSchema = new Schema({
-  visitor: { type: String, ref: 'Member', required: true },
-  targetMember: { type: String, ref: 'Member', required: true },
+const visitSchema = new Schema(
+  {
+    visitor: { type: String, ref: 'Member', required: true },
+    targetMember: { type: String, ref: 'Member', required: true },
+  },
+  { timestamps: true }
+);
+
+const messageSchema = new Schema({
+  sender: { type: String, ref: 'Member', required: true },
+  recipient: { type: String, ref: 'Member', required: true },
+  text: { type: String, required: true },
 });
+
 export const Member = mongoose.model('Member', membersSchema);
 export const Password = mongoose.model('Password', passwordSchema);
 export const Heart = mongoose.model('Heart', heartSchema);
 export const Visit = mongoose.model('Visit', visitSchema);
+export const Message = mongoose.model('Message', messageSchema);

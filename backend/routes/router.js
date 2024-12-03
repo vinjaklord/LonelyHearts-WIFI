@@ -19,6 +19,16 @@ import {
   deleteVisit,
 } from '../controllers/members.js';
 import { upload, checkToken } from '../common/middlewares.js';
+import { uploadAsStream } from '../controllers/files.js';
+import {
+  allMessages,
+  deleteMessage,
+  editMessage,
+  oneMessage,
+  sendMessage,
+  getThreads,
+  allMessagesProThread,
+} from '../controllers/message.js';
 const router = new Router();
 
 // TODO: build in the chech token
@@ -132,5 +142,40 @@ router.delete(
 
   deleteVisit
 );
+router.post('/stream', uploadAsStream);
+
+////////////////////////////////
+
+router.post(
+  '/messages',
+  checkToken,
+  body('sender').isMongoId(),
+  body('recipient').isMongoId(),
+  body('text').isString().isLength({ min: 1, max: 5000 }),
+  sendMessage
+);
+router.patch(
+  '/messages/:id',
+  checkToken,
+  body('text').optional().isString().isLength({ min: 1, max: 500 }),
+  body('read').optional().isBoolean(),
+  editMessage
+);
+router.delete(
+  '/messages/:id',
+  checkToken,
+  param('id').isMongoId(),
+  deleteMessage
+);
+
+router.get('/messages', checkToken, allMessages);
+
+router.get('/messages/:id', checkToken, oneMessage);
+
+router.get('/threads/inbox/:id', checkToken, getThreads);
+
+router.get('/threads/outbox/:id', checkToken, getThreads);
+
+router.get('/threads/messages', checkToken, allMessagesProThread);
 
 export default router;
