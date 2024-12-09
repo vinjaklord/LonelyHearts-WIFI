@@ -34,9 +34,18 @@ const membersSchema = new Schema(
   },
   { timestamps: true }
 );
+
 const passwordSchema = new Schema(
   {
     password: { type: String, require: true },
+    member: { type: mongoose.Types.ObjectId, required: true, ref: 'Member' },
+  },
+  { timestamps: true }
+);
+
+const resetTokenSchema = new Schema(
+  {
+    token: { type: String, require: true },
     member: { type: mongoose.Types.ObjectId, required: true, ref: 'Member' },
   },
   { timestamps: true }
@@ -58,6 +67,8 @@ membersSchema.pre('save', function () {
 membersSchema.post('findOneAndDelete', async function (deletedMember) {
   if (deletedMember) {
     await Password.deleteMany({ member: deletedMember._id });
+
+    await Resettoken.deleteMany({ member: deletedMember._id });
 
     await Visit.deleteMany({
       $or: [{ visitor: req.params.id }, { targetMember: req.params.id }],
@@ -98,3 +109,4 @@ export const Password = mongoose.model('Password', passwordSchema);
 export const Heart = mongoose.model('Heart', heartSchema);
 export const Visit = mongoose.model('Visit', visitSchema);
 export const Message = mongoose.model('Message', messageSchema);
+export const Resettoken = mongoose.model('ResetToken', resetTokenSchema);

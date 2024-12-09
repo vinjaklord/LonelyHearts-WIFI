@@ -1,6 +1,7 @@
 import { Message, Member } from '../models/members.js';
 import HttpError from '../models/http-error.js';
 import mongoose from 'mongoose';
+import { matchedData, validationResult } from 'express-validator';
 
 const sendMessage = async (req, res, next) => {
   try {
@@ -90,20 +91,39 @@ const oneMessage = async (req, res, next) => {
 
 const getThreads = async (req, res, next) => {
   try {
-    const { id } = req.params;
+    const result = validationResult(req);
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      throw new HttpError('Cant find threads', 404);
+    // if (!mongoose.Types.ObjectId.isValid(id)) {
+    //   throw new HttpError('Cant find threads', 404);
+    // }
+
+    if (result.errors.length > 0) {
+      throw new HttpError(JSON.stringify(result.errors), 422);
     }
 
-    const messages = await Message.find({ recipient: id })
-      .populate('sender')
+    const data = matchedData(req);
+    const { id } = data;
+
+    // Annahme: standard = Posteingang(inbox)
+    let findField = 'recipient';
+    let populateField = 'sender';
+
+    const url = req.url.toLowerCase();
+
+    if (url.includes('outbox')) {
+      findField = 'sender';
+      populateField = 'recipient';
+    }
+
+    const messages = await Message.find({ [findField]: id })
+      .populate(populateField)
       .sort({ createAt: 'desc' });
 
     const threads = [];
     messages.forEach((message) => {
       const index = threads.findIndex(
-        (thread) => thread.sender.toString() === message.sender.toString()
+        (thread) =>
+          thread.populateField.toString() === message.populateField.toString()
       );
 
       if (index < 0) {
@@ -111,7 +131,7 @@ const getThreads = async (req, res, next) => {
       }
     });
 
-    res.json([]);
+    res.json(threads);
   } catch (error) {
     return next(new HttpError(error, error.errorCode || 500));
   }
@@ -125,7 +145,9 @@ const allMessagesProThread = async (req, res, next) => {
   }
 
   try {
-    const messages = await Message.find({ sender, recipient });
+    const messages = await Message.find({ sender, recipient }).sort({
+      createdAt: 'asc',
+    });
 
     if (!messages) {
       return res

@@ -163,6 +163,39 @@ function getGeoDistance(lat1, lon1, lat2, lon2) {
   return d;
 }
 
+const handleValidationErrors = (errors) => {
+  const uniqueErrorsPath = [];
+  const addedPaths = new Set();
+  let error;
+
+  errors.forEach((error) => {
+    if (!error.from) {
+      if (!addedPaths.has(error.path)) {
+        uniqueErrorsPath.push({
+          path: error.path,
+          msg: error.msg,
+        });
+        addedPaths.add(error.path);
+      }
+    }
+  });
+
+  // Customize the errorCode, typ, redirectTo, and messageArray as per your requirements
+  error = new HttpError('Validation Error', 400, uniqueErrorsPath);
+
+  // Return or throw the error object
+  return error;
+};
+
+const errorHandler = (err, req, res, next) => {
+  if (err instanceof HttpError) {
+    const errorResponse = err.toJSON();
+    res.status(err.errorCode).json(errorResponse);
+  } else {
+    res.status(500).json({ message: 'An unexpected error occurred' });
+  }
+};
+
 export {
   sendFileToCloudinary,
   getGeolocation,
@@ -174,4 +207,6 @@ export {
   getToken,
   deleteFilefromCloudinary,
   getGeoDistance,
+  handleValidationErrors,
+  errorHandler,
 };

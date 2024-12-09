@@ -1,5 +1,11 @@
 import HttpError from '../models/http-error.js';
-import { Member, Password, Heart, Visit } from '../models/members.js';
+import {
+  Member,
+  Password,
+  Heart,
+  Visit,
+  Resettoken,
+} from '../models/members.js';
 import { validationResult, matchedData } from 'express-validator';
 import {
   sendFileToCloudinary,
@@ -12,10 +18,24 @@ import {
   getGeoDistance,
 } from '../common/index.js';
 
+import * as dotenv from 'dotenv';
+dotenv.config();
+
 const FOLDER_NAME = '1h2024';
 
 import mongoose from 'mongoose';
-import { response } from 'express';
+import { v4 as uuidv4 } from 'uuid';
+import nodeMailer from 'nodemailer';
+
+const transporter = nodeMailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
+  auth: {
+    user: process.env.USER,
+    pass: process.env.PASS,
+  },
+});
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -520,6 +540,71 @@ const deleteVisit = async (req, res, next) => {
   }
 };
 
+const resetPassword = async (req, res, next) => {
+  try {
+    const { login } = req.body;
+    //is there a member? when no abort
+
+    const foundMember = await Member.findOne({
+      $or: [{ nickname: login }, { email: login }],
+    });
+
+    if (!foundMember) {
+      throw new HttpError('cannot find membr', 404);
+    }
+    //delete all existing reset tokens
+    await Resettoken.deleteMany({ member: foundMember._id });
+
+    const token = uuidv4();
+
+    const newResetToken = new Resettoken({ token, member: foundMember._id });
+
+    const savedResetToken = await newResetToken.save();
+
+    const link = `http://${req.hostname}:${process.env.PORT}/reset-password?t=${token}`;
+
+    const text = `
+    Dear ${foundMember.firstName} ${foundMember.lastName}!
+    
+    Reset password with this link!
+    
+    ${link}
+    
+    Hello from admin!
+    `;
+
+    const html = `
+  ${text}
+  `;
+    await transporter.sendMail({
+      from: '"Aron" <aronpozsar@gmail.com>', // sender address
+      to: 'aronpozsar@gmail.com', // list of receivers
+      subject: 'Reset password', // Subject lin
+      text: 'Hello world?', // plain text body
+      html: `${html}`, // html body
+    });
+
+    res.send('Mail sent!');
+  } catch (error) {
+    return next(new HttpError(error.message, error.errorCode || 500));
+  }
+};
+
+const setNewPassword = async (req, res, next) => {
+  const result = validationResult(req);
+
+  if (result.errors.length > 0) {
+    const errors = result.array();
+    throw handleValidationErrors(errors);
+  }
+
+  const data = matchedData(req);
+
+  await Resettoken.deleteMany({ member: foundMember._id });
+
+  res.send('New password set successfully!!!');
+};
+
 export {
   signup,
   login,
@@ -538,4 +623,6 @@ export {
   createVisit,
   allVisits,
   deleteVisit,
+  resetPassword,
+  setNewPassword,
 };

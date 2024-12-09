@@ -6,6 +6,8 @@ import mongoose from 'mongoose';
 dotenv.config();
 import router from './routes/router.js';
 
+import { errorHandler } from './common/index.js';
+
 import HttpError from './models/http-error.js';
 
 const PORT = process.env.PORT || 5000;

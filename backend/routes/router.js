@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { body, param } from 'express-validator';
+import { body, param, header } from 'express-validator';
+import mongoose from 'mongoose';
 import {
   login,
   signup,
@@ -17,6 +18,8 @@ import {
   createVisit,
   allVisits,
   deleteVisit,
+  resetPassword,
+  setNewPassword,
 } from '../controllers/members.js';
 import { upload, checkToken } from '../common/middlewares.js';
 import { uploadAsStream } from '../controllers/files.js';
@@ -124,24 +127,9 @@ router.patch(
 
 router.delete('/hearts/:id', checkToken, param('id').isMongoId(), deleteHeart);
 
-router.post(
-  '/visits',
-  checkToken,
-
-  createVisit
-);
-router.get(
-  '/visits/:id',
-  checkToken,
-
-  allVisits
-);
-router.delete(
-  '/visits/:id',
-  checkToken,
-
-  deleteVisit
-);
+router.post('/visits', checkToken, createVisit);
+router.get('/visits/:id', checkToken, allVisits);
+router.delete('/visits/:id', checkToken, deleteVisit);
 router.post('/stream', uploadAsStream);
 
 ////////////////////////////////
@@ -169,13 +157,25 @@ router.delete(
 );
 
 router.get('/messages', checkToken, allMessages);
-
 router.get('/messages/:id', checkToken, oneMessage);
-
-router.get('/threads/inbox/:id', checkToken, getThreads);
-
+router.get(
+  '/threads/inbox/:id',
+  param('id').custom((value) => {
+    return mongoose.Types.ObjectId.isValid(value);
+  }),
+  checkToken,
+  getThreads
+);
 router.get('/threads/outbox/:id', checkToken, getThreads);
-
 router.get('/threads/messages', checkToken, allMessagesProThread);
+
+router.post('/members/reset-password', resetPassword);
+
+router.post(
+  '/members/set-new-password',
+  body('password').escape().isLength({ min: 6, max: 50 }),
+  header('reset-token').escape().isLength({ min: 36, max: 36 }),
+  setNewPassword
+);
 
 export default router;
